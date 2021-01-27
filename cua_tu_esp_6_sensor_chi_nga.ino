@@ -1,18 +1,9 @@
 #include "cua_tu_esp_6_sensor_chi_nga.h"
 
+extern AsyncWebServer server;
+extern struct configweb config_network;
 
-void motor_init(){
-    //set varialble
-    control_motor.normal_mode = true;
-    control_motor.forward = true;
-    control_motor.daytay = true;
-    control_motor.first_run = true;
-    configAPmode.turn_on_ap_mode = false;
-    control_motor.pul_speed = 0;
-    control_motor.pre_pul_speed = 0;
-    control_motor.count_first_run = 0;
-    control_motor.count_pul_FG = 0;
-
+void ReadEeprom(){
     control_motor.device_id = EEPROM.read(EEPROM_DEVICE_ID);
     ECHO("Device ID = ");
     ECHOLN(control_motor.device_id);
@@ -62,33 +53,7 @@ void motor_init(){
         ECHOLN("isSavePercentLowSpeed fasle, auto set 20");
     }
 
-    //count time check analog sensor
-    control_motor.time_delay_analog = EEPROM.read(EEPROM_COUNT_TIME_ANALOG);
-    if(control_motor.time_delay_analog == 0 || control_motor.time_delay_analog == 255){
-        control_motor.time_delay_analog = 2;
-    }
-    ECHO("count_check_analog_pin = ");
-    ECHO(control_motor.time_delay_analog*100);
-    ECHOLN("ms");
-
-    //value error analog 
-    control_motor.define_error_analog = EEPROM.read(EEPROM_VALUE_ERROR_ANALOG);
-    if(control_motor.define_error_analog == 0 || control_motor.define_error_analog == 255){
-        control_motor.define_error_analog = 100;
-    }
-    ECHO("define Error Analog Read: ");
-    ECHOLN(control_motor.define_error_analog);
-
-    //time auto close
-    control_motor.define_time_auto_close = EEPROM.read(EEPROM_TIME_AUTO_CLOSE);
-    // if(definecontrol_motor.time_auto_close == 0){
-    //     definecontrol_motor.time_auto_close = 10;       //10 min
-    // }
-    ECHO("Time Auto Close: ");
-    ECHO(control_motor.define_time_auto_close);
-    ECHOLN("min");
-
-    //stop speed
+     //stop speed
     control_motor.stop_speed = EEPROM.read(EEPROM_MIN_STOP_SPEED);
     if(control_motor.stop_speed == 0 || control_motor.stop_speed == 255){
         control_motor.stop_speed = MINSPEED;
@@ -96,10 +61,22 @@ void motor_init(){
     ECHO("Min stop speed: ");
     ECHOLN(control_motor.stop_speed);
 
+}
 
-    control_motor.value_error_analog = analogRead(ANALOG_READ_BUTTON);
-    control_motor.pre_value_error_analog = control_motor.value_error_analog;
+void motor_init(){
+    //set varialble
+    control_motor.normal_mode = true;
+    control_motor.forward = true;
+    control_motor.daytay = true;
+    control_motor.first_run = true;
+    configAPmode.turn_on_ap_mode = false;
+    control_motor.pul_speed = 0;
+    control_motor.pre_pul_speed = 0;
+    control_motor.count_first_run = 0;
+    control_motor.count_pul_FG = 0;
 
+    config_network.is_receive_data = false;
+    config_network.is_reset_distant = false;
 
 }
 
@@ -180,14 +157,6 @@ void Stop(){
     control_motor.status_stop = true;
     control_motor.daytay = true;
     control_motor.count_calcu_speed = 0;
-
-    //reset_value_analog
-    // control_motor.value_error_analog = analogRead(ANALOG_READ_BUTTON);
-    // control_motor.pre_value_error_analog = control_motor.value_error_analog;
-    // ECHO("pre_value_error_analog: ");
-    // ECHOLN(control_motor.pre_value_error_analog);
-    // getStatus();
-
 
 }
 
@@ -312,36 +281,6 @@ void setPwmLedLightoff(){
 	}
 
 }
-
-// void setPwmLedLightChange(){
-//     control_led.count_change_led++;
-//     float out_led_red, out_led_green, out_led_blue;
-//     out_led_red = (float)control_led.red_before + (((float)control_led.red_after - (float)control_led.red_before)/255)*control_led.count_change_led;
-//     out_led_red = abs(out_led_red);
-//     ledcWrite(LED_CHANNEL_R, uint8_t(out_led_red));
-
-//     out_led_green = (float)control_led.green_before + (((float)control_led.green_after - (float)control_led.green_before)/255)*control_led.count_change_led;
-//     out_led_green = abs(out_led_green);
-//     ledcWrite(LED_CHANNEL_G, uint8_t(out_led_green));
-
-//     out_led_blue = (float)control_led.blue_before + (((float)control_led.blue_after - (float)control_led.blue_before)/255)*control_led.count_change_led;
-//     out_led_blue = abs(out_led_blue);
-//     ledcWrite(LED_CHANNEL_B, uint8_t(out_led_blue));
-
-//     // ECHO(uint8_t(out_led_red));
-//     // ECHO("-----");
-//     // ECHO(uint8_t(out_led_green));
-//     // ECHO("-----");
-//     // ECHOLN(uint8_t(out_led_blue));
-//     if(control_led.count_change_led == 255){
-//         ECHOLN("Change Led");
-// 		control_led.count_change_led = 0;
-//         control_led.red_before = control_led.red_after;
-//         control_led.green_before = control_led.green_after;
-//         control_led.blue_before = control_led.blue_after;
-// 	}
-// }
-
 
 
 void IRAM_ATTR dirhallSensor1(){      //nhan du lieu tu cam bien ben ngoai
@@ -557,25 +496,6 @@ void tickerupdate(){
 }
 
 
-void checkAutoClose(){
-    //reset lai bien control_motor.flag_auto_close
-    if(control_motor.forward && control_motor.status_stop && control_motor.flag_auto_close){
-        control_motor.flag_auto_close = false;
-    }
-    //setup bien control_motor.flag_auto_close len true, day la thoi diem tu mo va bat dau tinh thoi gian
-    if(!control_motor.forward && control_motor.status_stop  && control_motor.count_pul_FG >= (control_motor.count_pul_distant - 3) && !control_motor.flag_auto_close){
-        control_motor.time_auto_close = millis();
-        control_motor.flag_auto_close = true;
-        ECHO("Start time auto close: ");
-        ECHO(control_motor.define_time_auto_close);
-        ECHOLN("(min)");
-    }
-    if(control_motor.flag_auto_close && millis() >= control_motor.time_auto_close + control_motor.define_time_auto_close*1000*60){       //don vi tinh theo phut
-        control_motor.flag_auto_close = false;
-        Close();
-    }
-}
-
 
 void setSpeedControl(){
     float inside = ((float)control_motor.percent_low_in/100)*control_motor.count_pul_distant;
@@ -618,173 +538,6 @@ void setSpeedControl(){
     // }
 }
 
-void checkAnalogReadButton(){
-    //analogRead
-    if(control_motor.status_stop && control_motor.forward && control_motor.count_pul_FG <= 3 && abs(millis() - control_motor.time_check_analog) > TIME_CHECK_ANALOG){
-        control_motor.time_check_analog = millis();
-        control_motor.value_error_analog = analogRead(ANALOG_READ_BUTTON);
-        // ECHOLN(control_motor.value_error_analog);
-        if(abs(control_motor.value_error_analog - control_motor.pre_value_error_analog) > control_motor.define_error_analog){
-            for(int i = 0; i < control_motor.time_delay_analog; i++){
-                control_motor.value_error_analog = analogRead(ANALOG_READ_BUTTON);
-                if(abs(control_motor.value_error_analog - control_motor.pre_value_error_analog) <= control_motor.define_error_analog){
-                    return;
-                }
-                delay(100);
-            }
-            ECHOLN("Analog Sensor!");
-            Open();
-        }
-        
-    }
-
-}
-
-// void receiveDataCan(){
-//     CAN_frame_t rx_frame;
-//     if (xQueueReceive(CAN_cfg.rx_queue, &rx_frame, 3 * portTICK_PERIOD_MS) == pdTRUE) {
-
-//         if (rx_frame.FIR.B.FF == CAN_frame_std) {
-//         printf("New standard frame");
-//         }
-//         else {
-//         printf("New extended frame");
-//         }
-
-//         if (rx_frame.FIR.B.RTR == CAN_RTR) {
-//         printf(" RTR from %d, DLC %d\r\n", rx_frame.MsgID,  rx_frame.FIR.B.DLC);
-//         }
-//         else {
-//         printf(" from %d, DLC %d, Data ", rx_frame.MsgID,  rx_frame.FIR.B.DLC);
-//         for (int i = 0; i < rx_frame.FIR.B.DLC; i++) {
-//             printf("%d ", rx_frame.data.u8[i]);
-//         }
-//         printf("\n");
-//         }
-
-//         if(rx_frame.MsgID == MSG_MASTER_ID){
-//             if(rx_frame.data.u8[0] == MSG_SET_ID){
-//                 control_motor.device_id = rx_frame.data.u8[1];
-//                 ECHO("Writed: ");
-//                 ECHO(control_motor.device_id);
-//                 EEPROM.write(EEPROM_DEVICE_ID, char(control_motor.device_id));
-//                 EEPROM.commit();
-//             }
-//             if(rx_frame.data.u8[0] == control_motor.device_id){
-//                 switch (rx_frame.data.u8[1])
-//                 {
-//                     case MSG_GET_STATUS:
-//                         getStatus();
-//                         break;
-//                     case MSG_CONTROL_OPEN:
-//                         if (control_motor.count_pul_FG <= 3)
-//                         {
-//                             Open();
-//                         }
-//                         break;
-//                     case MSG_CONTROL_CLOSE:
-//                         if(control_motor.count_pul_FG >= (control_motor.count_pul_distant - 3)){
-//                             Close();
-//                         }
-//                         break;
-//                     case MSG_CONTROL_STOP:
-//                         Stop();
-//                         break;
-//                     case MSG_CONTROL_LED_VOICE:
-//                         if(control_led.status_led){
-//                             control_led.red_after = rx_frame.data.u8[2];
-//                             control_led.green_after = rx_frame.data.u8[3];
-//                             control_led.blue_after = rx_frame.data.u8[4];
-//                             EEPROM.write(EEPROM_WIFI_LED_RED, char(control_led.red_after));
-//                             EEPROM.write(EEPROM_WIFI_LED_GREEN, char(control_led.green_after));
-//                             EEPROM.write(EEPROM_WIFI_LED_BLUE, char(control_led.blue_after));
-//                             EEPROM.commit();
-//                             tickerSetPwmLedLightChange.start();
-//                         }
-//                         break;
-//                     case MSG_CONTROL_LED_HAND:
-//                         if(control_led.status_led){
-//                             control_led.red_after = rx_frame.data.u8[2];
-//                             control_led.green_after = rx_frame.data.u8[3];
-//                             control_led.blue_after = rx_frame.data.u8[4];
-//                             ledcWrite(LED_CHANNEL_R, control_led.red_after);
-//                             ledcWrite(LED_CHANNEL_G, control_led.green_after);
-//                             ledcWrite(LED_CHANNEL_B, control_led.blue_after);
-//                             control_led.red_before  = control_led.red_after;
-//                             control_led.green_before  = control_led.green_after;
-//                             control_led.blue_before  = control_led.blue_after;
-//                         }
-//                         break;
-//                     case MSG_RESET_DISTANT:
-//                         EEPROM.write(EEPROM_DISTANT, 0);
-//                         EEPROM.commit();
-//                         control_motor.is_save_distant = false;
-//                         control_motor.first_run = true;
-//                         control_motor.count_first_run = 0;
-//                         ECHOLN("resetDistant");
-//                         break;
-//                     case MSG_TIME_RETURN:
-//                         control_motor.time_return = rx_frame.data.u8[2];
-//                         ECHO("Writed: ");
-//                         ECHO(control_motor.time_return);
-//                         EEPROM.write(EEPROM_SET_TIME_RETURN, char(control_motor.time_return));
-//                         EEPROM.commit();
-//                         break;
-//                     case MSG_MODE_RUN:
-//                         control_motor.mode_run = rx_frame.data.u8[2];
-//                         ECHO("Writed: ");
-//                         ECHO(control_motor.mode_run);
-//                         EEPROM.write(EEPROM_SET_MODE_RUN_BEGIN, char(control_motor.mode_run));
-//                         EEPROM.commit();
-//                         break;
-//                     case MSG_PERCENT_LOW:
-//                         control_motor.percent_low_in = rx_frame.data.u8[2];
-//                         control_motor.percent_low_out = rx_frame.data.u8[3];
-//                         ECHO("Writed: ");
-//                         ECHO(control_motor.percent_low_out);
-//                         ECHO(",");
-//                         ECHOLN(control_motor.percent_low_in);
-//                         EEPROM.write(EEPROM_SET_PERCENT_OUT_LOW_SPEED, char(control_motor.percent_low_out));
-//                         EEPROM.write(EEPROM_SET_PERCENT_IN_LOW_SPEED, char(control_motor.percent_low_in));
-//                         EEPROM.commit();
-//                         break;
-//                     case MSG_DELAY_ANALOG:
-//                         control_motor.time_delay_analog = rx_frame.data.u8[2];
-//                         ECHO("Writed: ");
-//                         ECHO(control_motor.time_delay_analog);
-//                         EEPROM.write(EEPROM_COUNT_TIME_ANALOG, char(control_motor.time_delay_analog));
-//                         EEPROM.commit();
-//                         break;
-//                     case MSG_ERROR_ANALOG:
-//                         control_motor.define_error_analog = rx_frame.data.u8[2];
-//                         ECHO("Writed: ");
-//                         ECHO(control_motor.define_error_analog);
-//                         EEPROM.write(EEPROM_VALUE_ERROR_ANALOG, char(control_motor.define_error_analog));
-//                         EEPROM.commit();
-//                         break;
-//                     case MSG_AUTO_CLOSE:
-//                         control_motor.define_time_auto_close = rx_frame.data.u8[2];
-//                         ECHO("Writed: ");
-//                         ECHO(control_motor.define_time_auto_close);
-//                         EEPROM.write(EEPROM_TIME_AUTO_CLOSE, char(control_motor.define_time_auto_close));
-//                         EEPROM.commit();
-//                         break;
-//                     case MSG_MIN_STOP_SPEED:
-//                         control_motor.stop_speed = rx_frame.data.u8[2];
-//                         ECHO("Writed: ");
-//                         ECHO(control_motor.stop_speed);
-//                         EEPROM.write(EEPROM_MIN_STOP_SPEED, char(control_motor.stop_speed));
-//                         EEPROM.commit();
-//                         break;
-//                     default:
-//                         break;
-//                 }
-                
-//             }
-            
-//         }
-//     }
-// }
 
 String MacID(){
     uint8_t mac[WL_MAC_ADDR_LENGTH];
@@ -800,9 +553,9 @@ void SetupConfigMode(){
     ECHOLN("[WifiService][setupAP] Open AP....");
     WiFi.softAPdisconnect();
     WiFi.disconnect();
-    server.close();
+    // server.close();
     delay(500);
-    WiFi.mode(WIFI_AP_STA);
+    WiFi.mode(WIFI_AP);
     String SSID_AP_MODE = SSID_PRE_AP_MODE + MacID();
     WiFi.softAP(SSID_AP_MODE.c_str(), PASSWORD_AP_MODE);
     IPAddress APIP(192, 168, 4, 1);
@@ -818,130 +571,18 @@ void SetupConfigMode(){
 }
 
 
-void StartConfigServer(){    
-    ECHOLN("[HttpServerH][startConfigServer] Begin create new server...");
-    server.on("/moderun", HTTP_POST, SetModeRun);
-    server.on("/resetdistant", HTTP_GET, ResetDistant);
-    server.on("/percentslow", HTTP_POST, PerCenSlow);
-    server.on("/timereturn", HTTP_POST, TimeReturn);
-    server.on("/minspeed", HTTP_POST, MinSpeed);
-    
-    server.begin();
-    ECHOLN("[HttpServerH][startConfigServer] HTTP server started");
+void StartWebServer(){
+	server.on("/", HTTP_GET, handleRoot);
+	server.on("/mode_run", HTTP_GET, handleSaveModeRun);
+	server.on("/time_return", HTTP_GET, handleSaveTimeReturn);
+	server.on("/percent_low", HTTP_GET, handleSavePercentLow);
+	server.on("/stop_speed", HTTP_GET, handleSaveStopSpeed);
+	server.on("/reset_distant", HTTP_GET, handleResetDistant);
+	server.onNotFound(notFound);
+	server.begin();
+	Serial.println( "HTTP server started" );
 }
 
-void SetModeRun(){
-    StaticJsonBuffer<RESPONSE_LENGTH> jsonBuffer;
-    ECHOLN(server.arg("plain"));
-    JsonObject& rootData = jsonBuffer.parseObject(server.arg("plain"));
-    ECHOLN("--------------");
-    if (rootData.success()) {
-        server.sendHeader("Access-Control-Allow-Headers", "*");
-        server.sendHeader("Access-Control-Allow-Origin", "*");
-        server.send(200, "application/json; charset=utf-8", "{\"status\":\"success\"}");
-        
-        String nmoderun = rootData["moderun"];
-
-        control_motor.mode_run = nmoderun.toInt();
-
-        ECHOLN("");
-        ECHOLN("writing eeprom set moderun:"); 
-        ECHO("Wrote: ");
-        EEPROM.write(EEPROM_SET_MODE_RUN_BEGIN, control_motor.mode_run);
-        ECHOLN(control_motor.mode_run);
-        EEPROM.commit();
-        ECHOLN("Done writing!");
-
-    }
-}
-void ResetDistant(){
-    EEPROM.write(EEPROM_DISTANT, 0);
-    EEPROM.commit();
-    control_motor.is_save_distant = false;
-    control_motor.first_run = true;
-    control_motor.count_first_run = 0;
-    ECHOLN("Done writing!");
-}
-
-void PerCenSlow(){
-    StaticJsonBuffer<RESPONSE_LENGTH> jsonBuffer;
-    ECHOLN(server.arg("plain"));
-    JsonObject& rootData = jsonBuffer.parseObject(server.arg("plain"));
-    ECHOLN("--------------");
-    if (rootData.success()) {
-        server.sendHeader("Access-Control-Allow-Headers", "*");
-        server.sendHeader("Access-Control-Allow-Origin", "*");
-        server.send(200, "application/json; charset=utf-8", "{\"status\":\"success\"}");
-        
-        String nIn = rootData["in"];
-        String nOut = rootData["out"];
-
-        control_motor.percent_low_in = nIn.toInt();
-        control_motor.percent_low_out = nOut.toInt();
-
-        ECHOLN("");
-        ECHOLN("writing eeprom percent slow:"); 
-        ECHO("Wrote: ");
-        EEPROM.write(EEPROM_SET_PERCENT_IN_LOW_SPEED, control_motor.percent_low_in);
-        EEPROM.write(EEPROM_SET_PERCENT_OUT_LOW_SPEED, control_motor.percent_low_out);
-        ECHO(control_motor.percent_low_in);
-        ECHO("   ");
-        ECHOLN(control_motor.percent_low_out);
-        EEPROM.commit();
-        ECHOLN("Done writing!");
-
-    }
-}
-
-void TimeReturn(){
-    StaticJsonBuffer<RESPONSE_LENGTH> jsonBuffer;
-    ECHOLN(server.arg("plain"));
-    JsonObject& rootData = jsonBuffer.parseObject(server.arg("plain"));
-    ECHOLN("--------------");
-    if (rootData.success()) {
-        server.sendHeader("Access-Control-Allow-Headers", "*");
-        server.sendHeader("Access-Control-Allow-Origin", "*");
-        server.send(200, "application/json; charset=utf-8", "{\"status\":\"success\"}");
-        
-        String nreturn = rootData["return"];
-
-        control_motor.time_return = nreturn.toInt();
-
-        ECHOLN("");
-        ECHOLN("writing eeprom time return:"); 
-        ECHO("Wrote: ");
-        EEPROM.write(EEPROM_SET_TIME_RETURN, control_motor.time_return);
-        ECHOLN(control_motor.time_return);
-        EEPROM.commit();
-        ECHOLN("Done writing!");
-
-    }
-}
-
-void MinSpeed(){
-    StaticJsonBuffer<RESPONSE_LENGTH> jsonBuffer;
-    ECHOLN(server.arg("plain"));
-    JsonObject& rootData = jsonBuffer.parseObject(server.arg("plain"));
-    ECHOLN("--------------");
-    if (rootData.success()) {
-        server.sendHeader("Access-Control-Allow-Headers", "*");
-        server.sendHeader("Access-Control-Allow-Origin", "*");
-        server.send(200, "application/json; charset=utf-8", "{\"status\":\"success\"}");
-        
-        String nminspeed = rootData["minspeed"];
-
-        control_motor.stop_speed = nminspeed.toInt();
-
-        ECHOLN("");
-        ECHOLN("writing eeprom min stop speed:"); 
-        ECHO("Wrote: ");
-        EEPROM.write(EEPROM_MIN_STOP_SPEED, control_motor.stop_speed);
-        ECHOLN(control_motor.stop_speed);
-        EEPROM.commit();
-        ECHOLN("Done writing!");
-
-    }
-}
 
 void checkButtonConfigClick(){
     //hold to config mode
@@ -954,7 +595,7 @@ void checkButtonConfigClick(){
         // control_motor.normal_mode = false;
         configAPmode.turn_on_ap_mode = true;
         SetupConfigMode();
-        StartConfigServer();
+        StartWebServer();
     }
 }
 
@@ -963,7 +604,6 @@ void setup() {
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
     Serial.begin(115200);
     EEPROM.begin(EEPROM_WIFI_MAX_CLEAR);
-    // analogSetClockDiv(255);
      
     ledcSetup(LED_CHANNEL_R, 1000, 8); // 1 kHz PWM, 8-bit resolution
     ledcSetup(LED_CHANNEL_G, 1000, 8); // 1 kHz PWM, 8-bit resolution
@@ -989,6 +629,7 @@ void setup() {
     pinMode(ledTestWifi, OUTPUT);
     digitalWrite(ledTestWifi, HIGH);
     
+    ReadEeprom();
     motor_init();
     led_init();
 
@@ -1001,16 +642,9 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(hallSensor6), dirhallSensor6, RISING);
     attachInterrupt(digitalPinToInterrupt(inputFG), inputSpeed, FALLING);
 
-    // CAN_cfg.speed = CAN_SPEED_125KBPS;
-    // CAN_cfg.tx_pin_id = GPIO_NUM_25;
-    // CAN_cfg.rx_pin_id = GPIO_NUM_33;
-    // CAN_cfg.rx_queue = xQueueCreate(rx_queue_size, sizeof(CAN_frame_t));
-    // // Init CAN Module
-    // ESP32Can.CANInit();
 
     Close();
 
-    // ledcWrite(MOTOR_CHANNEL, MOTOR_MODE_SPEED_3);
 }
 
 void loop() {
@@ -1021,16 +655,19 @@ void loop() {
         tickerSetPwmLedLightOn.stop();
         tickerSetPwmLedLightOff.start();
     }
-    // if(control_motor.define_time_auto_close != 0){
-    //     checkAutoClose();
-    // }
-    // checkAnalogReadButton();
     checkButtonConfigClick();
     setSpeedControl();
-    // receiveDataCan();
     tickerupdate();
-    if(configAPmode.turn_on_ap_mode){
-        server.handleClient();
+
+    if(config_network.is_receive_data){
+        ReadEeprom();
+        config_network.is_receive_data = false;
+    }
+    if(config_network.is_reset_distant){
+        control_motor.is_save_distant = false;
+        control_motor.first_run = true;
+        control_motor.count_first_run = 0;
+        config_network.is_reset_distant = false;
     }
 
 }
